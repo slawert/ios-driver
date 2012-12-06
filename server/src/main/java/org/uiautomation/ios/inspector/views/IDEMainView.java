@@ -79,7 +79,7 @@ public class IDEMainView implements View {
       b.append("<div id ='detailsparent' >");
       b.append("<div id ='htmlmenu'>");
       b.append("<ul>");
-      b.append("<li id=\"htmlshow\"><a href=\"#\">See HTML</a></li>");
+      b.append("<li id=\"htmlshow\"><a href=\"#\">Web Inspector</a></li>");
       b.append("</ul>");
       b.append("</div>");
       b.append("<div id ='details' ></div>");
@@ -129,7 +129,7 @@ public class IDEMainView implements View {
       b.append("<div class=\"boxhtml\" id=\"boxhtml\">");
       b.append("<a class=\"boxclosehtml\" id=\"boxclosehtml\"><p class=\"arrow-right-html\"></p></a>");
       b.append("<h4>Web Inspector</h4>");
-      b.append("<div id=\"webinspector\"></div> ");
+      b.append("<iframe id=\"webinspector\"></iframe> ");
       b.append("</div>");
       /* END OVERLAY HTML */
 

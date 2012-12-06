@@ -255,3 +255,9 @@ a.boxclose {
 	border-bottom: 10px solid transparent; 
 	border-left:10px solid #FFFFFF; 
 }
+
+#webinspector{
+ height : 100%;
+ width : 100%;
+ overflow : auto;
+}

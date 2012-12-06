@@ -254,9 +254,11 @@ findFrameSizeInPixels = function() {
 };
 
 injectHTML = function() {
-	alert('Hello');
-	var div = document.getElementById("webinspector");
-	div.innerHTML = getHTMLSource();
+	alert('<html><head></head><body>Welcome to your new 123-reg website! If youve uploaded your site but are still getting this welcome page try doing a SHIFT+Reload or a CTL+F5 - this will clear the cache. Good luck with your new website! You can delete this page or change its content. </body></html>');
+	$('#webinspector').attr('srcdoc', '<html><head></head><body>Welcome to your new 123-reg website! If youve uploaded your site but are still getting this welcome page try doing a SHIFT+Reload or a CTL+F5 - this will clear the cache. Good luck with your new website! You can delete this page or change its content. </body></html>');
+	/*var iframe = document.getElementById("webinspector");
+	iframe.innerHTML = '<html><head></head><body>Welcome to your new 123-reg website! If youve uploaded your site but are still getting this welcome page try doing a SHIFT+Reload or a CTL+F5 - this will clear the cache. Good luck with your new website! You can delete this page or change its content. </body></html>';
+*/
 }
 var device;
 var orientation;
