@@ -13,16 +13,9 @@
  */
 package org.uiautomation.ios.client.uiamodels.impl;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 
 import org.apache.commons.codec.binary.Base64;
 import org.apache.http.HttpHost;
@@ -37,9 +30,13 @@ import org.openqa.selenium.Keyboard;
 import org.openqa.selenium.NoAlertPresentException;
 import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.OutputType;
+import org.openqa.selenium.Rotatable;
+import org.openqa.selenium.ScreenOrientation;
 import org.openqa.selenium.TakesScreenshot;
 import org.openqa.selenium.WebDriverException;
 import org.openqa.selenium.WebElement;
+import org.openqa.selenium.html5.Location;
+import org.openqa.selenium.html5.LocationContext;
 import org.openqa.selenium.remote.BeanToJsonConverter;
 import org.openqa.selenium.remote.DriverCommand;
 import org.openqa.selenium.remote.ErrorHandler;
@@ -61,24 +58,38 @@ import org.uiautomation.ios.communication.Path;
 import org.uiautomation.ios.communication.WebDriverLikeCommand;
 import org.uiautomation.ios.communication.WebDriverLikeRequest;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
-public class RemoteUIADriver extends RemoteWebDriver implements UIADriver, TakesScreenshot {
 
-  private final String remoteURL;
-  private final Map<String, Object> requestedCapabilities;
+// TakesScreenshot, Rotatable, BrowserConnection, HasTouchScreen, WebStorage, LocationContext, ApplicationCache
+public class RemoteUIADriver extends RemoteWebDriver
+    implements UIADriver, TakesScreenshot, Rotatable, LocationContext {
+
+  private String remoteURL;
+  private Map<String, Object> requestedCapabilities;
   // private Session session;
   private String host;
   private int port;
-  private final DriverConfiguration configuration;
+  private DriverConfiguration configuration;
   private ErrorHandler errorHandler = new ErrorHandler();
 
+
+  protected RemoteUIADriver() {
+    super();
+  }
   /**
    * create the remote driver, starting the remote session with the requested
    * capabilities.
-   * 
+   *
    * @see #RemoteUIADriver(String, Map)
    * @param remoteURL
    * @param caps
@@ -90,11 +101,7 @@ public class RemoteUIADriver extends RemoteWebDriver implements UIADriver, Takes
    */
 
   /**
-   * create the remote driver, starting the remote session with the requested
-   * capabilities.
-   * 
-   * @param remoteURL
-   * @param requestedCapabilities
+   * create the remote driver, starting the remote session with the requested capabilities.
    */
   /*
    * public RemoteUIADriver(String remoteURL, Map<String, Object>
@@ -124,7 +131,6 @@ public class RemoteUIADriver extends RemoteWebDriver implements UIADriver, Takes
    * 
    * } catch (Exception e) { e.printStackTrace(); } }
    */
-
   public RemoteUIADriver(URL url, IOSCapabilities cap) {
     super(url, cap);
     this.remoteURL = url.toExternalForm();
@@ -140,22 +146,9 @@ public class RemoteUIADriver extends RemoteWebDriver implements UIADriver, Takes
 
   }
 
-  /**
-   * starts the remote session, and get the sessionId back.
-   * 
-   * @return
-   * @throws Exception
-   */
-  /*
-   * private SessionId start() throws Exception { JSONObject payload = new
-   * JSONObject(); payload.put("desiredCapabilities", requestedCapabilities);
-   * WebDriverLikeRequest request = new WebDriverLikeRequest("POST", "/session",
-   * payload); WebDriverLikeResponse response = execute(request); String
-   * sessionId = response.getSessionId(); SessionId session = new
-   * SessionId(sessionId); return session; }
-   */
 
-  public WebDriverLikeRequest buildRequest(WebDriverLikeCommand command, RemoteUIAElement element, Map<String, ?> params) {
+  public WebDriverLikeRequest buildRequest(WebDriverLikeCommand command, RemoteUIAElement element,
+                                           Map<String, ?> params) {
     String method = command.method();
     Path p = new Path(command).withSession(getSessionId());
     if (element != null) {
@@ -175,10 +168,6 @@ public class RemoteUIADriver extends RemoteWebDriver implements UIADriver, Takes
 
   /**
    * send the request to the remote server for execution.
-   * 
-   * @param request
-   * @return
-   * @throws Exception
    */
   public <T> T execute(WebDriverLikeRequest request) {
     Response response = null;
@@ -186,7 +175,9 @@ public class RemoteUIADriver extends RemoteWebDriver implements UIADriver, Takes
     try {
       HttpClient client = HttpClientFactory.getClient();
       String url = remoteURL + request.getPath();
-      BasicHttpEntityEnclosingRequest r = new BasicHttpEntityEnclosingRequest(request.getMethod(), url);
+      BasicHttpEntityEnclosingRequest
+          r =
+          new BasicHttpEntityEnclosingRequest(request.getMethod(), url);
       if (request.hasPayload()) {
         r.setEntity(new StringEntity(request.getPayload().toString(), "UTF-8"));
       }
@@ -200,7 +191,6 @@ public class RemoteUIADriver extends RemoteWebDriver implements UIADriver, Takes
     } catch (Exception e) {
       throw new WebDriverException(e);
     }
-
     response = errorHandler.throwIfResponseFailed(response, total);
     return cast(response.getValue());
   }
@@ -208,7 +198,9 @@ public class RemoteUIADriver extends RemoteWebDriver implements UIADriver, Takes
   @Override
   public JSONObject logElementTree(File screenshot, boolean translation) throws WebDriverException {
     WebDriverLikeRequest request = buildRequest(WebDriverLikeCommand.TREE_ROOT,
-        ImmutableMap.of("attachScreenshot", screenshot != null, "translation", translation));
+                                                ImmutableMap
+                                                    .of("attachScreenshot", screenshot != null,
+                                                        "translation", translation));
     JSONObject log = execute(request);
     if (screenshot != null) {
       JSONObject screen = log.optJSONObject("screenshot");
@@ -233,7 +225,7 @@ public class RemoteUIADriver extends RemoteWebDriver implements UIADriver, Takes
     }
 
     WebDriverLikeRequest request = buildRequest(WebDriverLikeCommand.ELEMENT_ROOT,
-        ImmutableMap.of("using", by, "value", using));
+                                                ImmutableMap.of("using", by, "value", using));
     return execute(request);
 
   }
@@ -245,21 +237,23 @@ public class RemoteUIADriver extends RemoteWebDriver implements UIADriver, Takes
     }
 
     WebDriverLikeRequest request = buildRequest(WebDriverLikeCommand.ELEMENTS_ROOT,
-        ImmutableMap.of("using", by, "value", using));
+                                                ImmutableMap.of("using", by, "value", using));
     return execute(request);
   }
 
   @Override
   public <T extends UIAElement> T findElement(Criteria c) throws NoSuchElementException {
     WebDriverLikeRequest request = buildRequest(WebDriverLikeCommand.ELEMENT_ROOT,
-        ImmutableMap.of("depth", -1, "criteria", c.stringify()));
+                                                ImmutableMap
+                                                    .of("depth", -1, "criteria", c.stringify()));
     return execute(request);
   }
 
   @Override
   public List<UIAElement> findElements(Criteria c) {
     WebDriverLikeRequest request = buildRequest(WebDriverLikeCommand.ELEMENTS_ROOT,
-        ImmutableMap.of("depth", -1, "criteria", c.stringify()));
+                                                ImmutableMap
+                                                    .of("depth", -1, "criteria", c.stringify()));
     return execute(request);
   }
 
@@ -354,9 +348,13 @@ public class RemoteUIADriver extends RemoteWebDriver implements UIADriver, Takes
     // Escape the quote marks
     script = script.replaceAll("\"", "\\\"");
 
-    Iterable<Object> convertedArgs = Iterables.transform(Lists.newArrayList(args), new WebElementToJsonConverter());
+    Iterable<Object>
+        convertedArgs =
+        Iterables.transform(Lists.newArrayList(args), new WebElementToJsonConverter());
 
-    Map<String, ?> params = ImmutableMap.of("script", script, "args", Lists.newArrayList(convertedArgs));
+    Map<String, ?>
+        params =
+        ImmutableMap.of("script", script, "args", Lists.newArrayList(convertedArgs));
 
     return execute(DriverCommand.EXECUTE_SCRIPT, params).getValue();
   }
@@ -377,23 +375,22 @@ public class RemoteUIADriver extends RemoteWebDriver implements UIADriver, Takes
 
   @Override
   public Keyboard getKeyboard() {
-    WebDriverLikeRequest request = buildRequest(WebDriverLikeCommand.KEYBOARD, RemoteUIAElement.getFrontMostApp(this),
-        null);
+    WebDriverLikeRequest
+        request =
+        buildRequest(WebDriverLikeCommand.KEYBOARD, RemoteUIAElement.getFrontMostApp(this),
+                     null);
     return execute(request);
   }
 
   @Override
   public void tap(int x, int y) {
-    WebDriverLikeRequest request = buildRequest(WebDriverLikeCommand.TARGET_TAP, RemoteUIAElement.target(this),
-        ImmutableMap.of("x", x, "y", y));
+    WebDriverLikeRequest
+        request =
+        buildRequest(WebDriverLikeCommand.TARGET_TAP, RemoteUIAElement.target(this),
+                     ImmutableMap.of("x", x, "y", y));
     execute(request);
   }
 
-  @Override
-  public void setDeviceOrientation(Orientation o) {
-    WebDriverLikeRequest request = buildRequest(WebDriverLikeCommand.SET_ORIENTATION, ImmutableMap.of("orientation", o));
-    execute(request);
-  }
 
   @Override
   public UIAAlert getAlert() throws NoAlertPresentException {
@@ -407,9 +404,54 @@ public class RemoteUIADriver extends RemoteWebDriver implements UIADriver, Takes
 
   @Override
   public void pinchClose(int x1, int y1, int x2, int y2, int duration) {
-    WebDriverLikeRequest request = buildRequest(WebDriverLikeCommand.PINCH_CLOSE,
-        ImmutableMap.of("x1", x1, "y1", y1, "x2", x2, "y2", y2, "duration", duration));
+    /*WebDriverLikeRequest request = buildRequest(WebDriverLikeCommand.PINCH_CLOSE,
+                                                ImmutableMap
+                                                    .of("x1", x1, "y1", y1, "x2", x2, "y2", y2,
+                                                        "duration", duration));
+    execute(request); */
+  }
+
+  @Override
+  public void rotate(ScreenOrientation orientation) {
+    WebDriverLikeRequest
+        request =
+        buildRequest(WebDriverLikeCommand.SET_ORIENTATION,
+                     ImmutableMap.of("orientation", orientation));
     execute(request);
   }
 
+  public void rotate(Orientation orientation) {
+    WebDriverLikeRequest
+        request =
+        buildRequest(WebDriverLikeCommand.SET_ORIENTATION,
+                     ImmutableMap.of("orientation", orientation));
+    execute(request);
+  }
+
+  @Override
+  public ScreenOrientation getOrientation() {
+    WebDriverLikeRequest
+        request =
+        buildRequest(WebDriverLikeCommand.GET_ORIENTATION);
+    String res = execute(request);
+    return ScreenOrientation.valueOf(res);
+  }
+
+  public Orientation getNativeOrientation() {
+    WebDriverLikeRequest
+        request =
+        buildRequest(WebDriverLikeCommand.GET_ORIENTATION);
+    String res = execute(request);
+    return Orientation.valueOf(res);
+  }
+
+  @Override
+  public Location location() {
+    return null;  //To change body of implemented methods use File | Settings | File Templates.
+  }
+
+  @Override
+  public void setLocation(Location location) {
+    //To change body of implemented methods use File | Settings | File Templates.
+  }
 }

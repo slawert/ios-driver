@@ -23,10 +23,13 @@ import org.uiautomation.ios.server.IOSDriver;
 import org.uiautomation.ios.server.command.BaseWebCommandHandler;
 import org.uiautomation.ios.webInspector.DOM.RemoteWebElement;
 
+import java.util.logging.Logger;
+
 public class SetValueHandler extends BaseWebCommandHandler {
 
+  private static final Logger log = Logger.getLogger(SetValueHandler.class.getName());
   private static final boolean nativeEvents = true;
-  
+
   public SetValueHandler(IOSDriver driver, WebDriverLikeRequest request) {
     super(driver, request);
   }
@@ -37,27 +40,21 @@ public class SetValueHandler extends BaseWebCommandHandler {
     RemoteWebElement element = new RemoteWebElement(new NodeId(id), getSession());
 
     JSONArray array = getRequest().getPayload().getJSONArray("value");
+    log.fine("payload : " + getRequest().getPayload().toString(2));
     String value = "";
-    if (array.length() == 1) {
-      Object o = array.get(0);
-      if (o instanceof String) {
-        value = (String) o;
-      } else {
-        throw new RuntimeException("NI");
-      }
-    } else {
-      throw new RuntimeException("NI");
+
+    for (int i = 0; i < array.length(); i++) {
+      value += array.get(i);
     }
-    
+
     boolean useNativeEvents = getConfiguration("nativeEvents", nativeEvents);
 
-    if (useNativeEvents){
+    if (useNativeEvents) {
       element.setValueNative(value);
-    }else{
+    } else {
       element.setValueAtoms(value);
     }
-    
-    
+
     Response res = new Response();
     res.setSessionId(getSession().getSessionId());
     res.setStatus(0);
@@ -71,8 +68,8 @@ public class SetValueHandler extends BaseWebCommandHandler {
     desc.put(
         "nativeEvents",
         "{boolean}, default to "
-            + nativeEvents
-            + ".true = UIAutomation native events will be used to enter the URL (slow) , Web =  WebKit remote debugging will be used.Faster but doesn't fire events.");
+        + nativeEvents
+        + ".true = UIAutomation native events will be used to enter the URL (slow) , Web =  WebKit remote debugging will be used.Faster but doesn't fire events.");
     return desc;
   }
 

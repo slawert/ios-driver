@@ -1,14 +1,5 @@
 package org.uiautomation.ios.selenium;
 
-import static org.openqa.selenium.TestWaiter.waitFor;
-import static org.openqa.selenium.WaitingConditions.pageTitleToBe;
-import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertTrue;
-import static org.testng.Assert.fail;
-
-import java.io.File;
-import java.io.IOException;
-
 import org.apache.commons.io.FileUtils;
 import org.openqa.selenium.Alert;
 import org.openqa.selenium.By;
@@ -16,6 +7,15 @@ import org.openqa.selenium.Keys;
 import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.WebElement;
 import org.testng.annotations.Test;
+
+import java.io.File;
+import java.io.IOException;
+
+import static org.openqa.selenium.TestWaiter.waitFor;
+import static org.openqa.selenium.WaitingConditions.pageTitleToBe;
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.fail;
 
 public class FormHandlingTest extends BaseSeleniumTest {
 
@@ -80,19 +80,19 @@ public class FormHandlingTest extends BaseSeleniumTest {
 
   @Test
   // @Ignore(OPERA_MOBILE)
-  // TODO freynaud find how to disable auto capitalisation.
   public void testShouldBeAbleToEnterTextIntoATextAreaBySettingItsValue() {
     driver.get(pages.javascriptPage);
     WebElement textarea = driver.findElement(By.id("keyUpArea"));
     String cheesy = "brie and cheddar";
     textarea.sendKeys(cheesy);
-    assertEquals(textarea.getAttribute("value"), (cheesy));
+    assertEquals(textarea.getAttribute("value"), cheesy);
+    assertEquals(driver.findElement(By.id("result")).getText(), cheesy);
   }
 
   // @Ignore(value = { ANDROID, OPERA_MOBILE }, reason =
   // "Android: capitalization bug in ICS keeps caps on after a capital letter is sent")
   @Test
-  public void testSendKeysKeepsCapitalization() {
+  public void testSendKeysKeepsCapitalization() throws InterruptedException {
     driver.get(pages.javascriptPage);
     WebElement textarea = driver.findElement(By.id("keyUpArea"));
     String cheesey = "BrIe And CheDdar";
@@ -125,7 +125,9 @@ public class FormHandlingTest extends BaseSeleniumTest {
   @Test
   public void testShouldEnterDataIntoFormFields() {
     driver.get(pages.xhtmlTestPage);
-    WebElement element = driver.findElement(By.xpath("//form[@name='someForm']/input[@id='username']"));
+    WebElement
+        element =
+        driver.findElement(By.xpath("//form[@name='someForm']/input[@id='username']"));
     String originalValue = element.getAttribute("value");
     assertEquals(originalValue, ("change"));
 
@@ -156,10 +158,16 @@ public class FormHandlingTest extends BaseSeleniumTest {
 
   // will add a picture in the default "saved picture" album.
   public void addPictures() {
-    File folder = new File("/Users/freynaud/Library/Application Support/iPhone Simulator/6.0/Media/DCIM/100APPLE/");
+    File
+        folder =
+        new File(
+            "/Users/freynaud/Library/Application Support/iPhone Simulator/6.0/Media/DCIM/100APPLE/");
     File image = new File("/Users/freynaud/image.png");
 
-    File plistFolder = new File("/Users/freynaud/Library/Application Support/iPhone Simulator/6.0/Media/PhotoData/MISC");
+    File
+        plistFolder =
+        new File(
+            "/Users/freynaud/Library/Application Support/iPhone Simulator/6.0/Media/PhotoData/MISC");
     File plist = new File("/Users/freynaud/DCIM_APPLE.plist");
 
     try {
@@ -176,7 +184,8 @@ public class FormHandlingTest extends BaseSeleniumTest {
   // @Ignore(value = { ANDROID, IPHONE, OPERA, SAFARI, SELENESE, OPERA_MOBILE },
   // reason = "Does not yet support file uploads", issues = { 4220 })
   @Test(enabled = false)
-  public void testShouldBeAbleToSendKeysToAFileUploadInputElementInAnXhtmlDocument() throws IOException {
+  public void testShouldBeAbleToSendKeysToAFileUploadInputElementInAnXhtmlDocument()
+      throws IOException {
     // IE before 9 doesn't handle pages served with an XHTML content type, and
     // just prompts for to
     // download it
@@ -236,6 +245,20 @@ public class FormHandlingTest extends BaseSeleniumTest {
     element.sendKeys(" text");
     value = element.getAttribute("value");
     assertEquals(value, ("some text"));
+  }
+
+  @Test
+  // doesn't work if the text is longer than the input size, as the cursor will
+  // end up where the tap was done.
+  public void testShouldScrollWhenZoomed() throws InterruptedException {
+    driver.get(pages.formPage);
+
+    WebElement element = driver.findElement(By.id("email"));
+    element.sendKeys("ios@ios.com");
+    element = driver.findElement(By.id("vsearchGadget"));
+    element.sendKeys("test");
+
+
   }
 
   // @Ignore(value = { ANDROID, IPHONE, OPERA, SELENESE, OPERA_MOBILE }, reason

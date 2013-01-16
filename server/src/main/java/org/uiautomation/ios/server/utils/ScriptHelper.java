@@ -14,6 +14,9 @@
 
 package org.uiautomation.ios.server.utils;
 
+import org.apache.commons.io.IOUtils;
+import org.openqa.selenium.WebDriverException;
+
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -21,22 +24,23 @@ import java.io.InputStream;
 import java.io.StringWriter;
 import java.io.Writer;
 
-import org.apache.commons.io.IOUtils;
-import org.openqa.selenium.WebDriverException;
-
 /**
- * Concatenate all the small JS files into 1 file passed to instruments, and
- * replace variables by their value.
- * 
+ * Concatenate all the small JS files into 1 file passed to instruments, and replace variables by
+ * their value.
+ *
  * @author freynaud
- * 
  */
 public class ScriptHelper {
 
-  private final String main = "main.js";
-  private final String json = "json2.js";
-  private final String lib1 = "UIAutomation.js";
-  private final String lib2 = "UIAElement.js";
+  private final String main = "instruments-js/main.js";
+  private final String json = "instruments-js/json2.js";
+  private final String common = "instruments-js/common.js";
+  private final String lib1 = "instruments-js/UIAutomation.js";
+  private final String lib2 = "instruments-js/UIAElement.js";
+  private final String lib3 = "instruments-js/UIAApplication.js";
+  private final String lib4 = "instruments-js/UIATarget.js";
+  private final String lib5 = "instruments-js/UIAAlert.js";
+  private final String lib6 = "instruments-js/Cache.js";
   private static final String FILE_NAME = "uiamasterscript";
 
   private String load(String resource) throws IOException {
@@ -59,9 +63,14 @@ public class ScriptHelper {
     c = c.replace("$SESSION", String.format("%s", opaqueKey));
 
     scriptContent.append(load(json));
-    scriptContent.append(c);
+    scriptContent.append(load(common));
+    scriptContent.append(load(lib4));
+    scriptContent.append(load(lib3));
     scriptContent.append(load(lib2));
 
+    scriptContent.append(load(lib5));
+    scriptContent.append(load(lib6));
+    scriptContent.append(c);
     scriptContent.append(load(main));
     return scriptContent.toString();
   }

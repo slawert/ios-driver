@@ -13,18 +13,15 @@
  */
 package org.uiautomation.ios.webInspector.DOM;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.openqa.selenium.Dimension;
+import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.NoSuchFrameException;
 import org.openqa.selenium.Point;
 import org.openqa.selenium.StaleElementReferenceException;
-import org.uiautomation.ios.UIAModels.UIAButton;
 import org.uiautomation.ios.UIAModels.UIADriver;
 import org.uiautomation.ios.UIAModels.UIAElement;
 import org.uiautomation.ios.UIAModels.UIARect;
@@ -38,15 +35,23 @@ import org.uiautomation.ios.UIAModels.predicate.LocationCriteria;
 import org.uiautomation.ios.UIAModels.predicate.NameCriteria;
 import org.uiautomation.ios.UIAModels.predicate.OrCriteria;
 import org.uiautomation.ios.UIAModels.predicate.TypeCriteria;
-import org.uiautomation.ios.client.uiamodels.impl.RemoteUIAKeyboard;
 import org.uiautomation.ios.communication.WebDriverLikeCommand;
-import org.uiautomation.ios.mobileSafari.Atoms;
+import org.uiautomation.ios.communication.device.Device;
 import org.uiautomation.ios.mobileSafari.DebugProtocol;
+import org.uiautomation.ios.mobileSafari.IosAtoms;
 import org.uiautomation.ios.mobileSafari.NodeId;
 import org.uiautomation.ios.mobileSafari.WebInspector;
 import org.uiautomation.ios.server.ServerSideSession;
+import org.uiautomation.ios.server.application.AppleLocale;
+import org.uiautomation.ios.server.application.ContentResult;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.logging.Logger;
 
 public class RemoteWebElement {
+
+  private static final Logger log = Logger.getLogger(RemoteWebElement.class.getName());
 
   private final UIADriver nativeDriver;
   protected final WebInspector inspector;
@@ -64,7 +69,8 @@ public class RemoteWebElement {
     this.nodeId = id;
   }
 
-  public RemoteWebElement(NodeId nodeId, ServerSideSession session, RemoteObject remoteObject) throws Exception {
+  public RemoteWebElement(NodeId nodeId, ServerSideSession session, RemoteObject remoteObject)
+      throws Exception {
     this(nodeId, session);
     this.remoteObject = remoteObject;
   }
@@ -79,7 +85,7 @@ public class RemoteWebElement {
 
   // TODO freyanud no return here.
   private void clickAtom() throws Exception {
-    String f = "(function(arg) { " + "var text = " + Atoms.click() + "(arg);" + "return text;})";
+    String f = "(function(arg) { " + "var text = " + IosAtoms.CLICK + "(arg);" + "return text;})";
     JSONObject cmd = new JSONObject();
 
     cmd.put("method", "Runtime.callFunctionOn");
@@ -88,22 +94,25 @@ public class RemoteWebElement {
     args.put(new JSONObject().put("objectId", getRemoteObject().getId()));
 
     cmd.put("params",
-        new JSONObject().put("objectId", getRemoteObject().getId()).put("functionDeclaration", f)
-            .put("arguments", args).put("returnByValue", true));
+            new JSONObject().put("objectId", getRemoteObject().getId())
+                .put("functionDeclaration", f)
+                .put("arguments", args).put("returnByValue", true));
 
     JSONObject response = inspector.getProtocol().sendCommand(cmd);
     inspector.cast(response);
   }
 
   private void clickNative() throws Exception {
-    UIAElement el = getNativeElement();
     WorkingMode origin = session.getMode();
-    try {
-      session.setMode(WorkingMode.Native);
-      el.tap();
-    } finally {
-      session.setMode(origin);
-    }
+    session.setMode(WorkingMode.Native);
+    ((JavascriptExecutor) nativeDriver).executeScript(getNativeElementClickOnIt());
+    session.setMode(origin);
+    long start = System.currentTimeMillis();
+
+    /*while (true) {
+      long end = System.currentTimeMillis();
+      System.out.println((end-start)+"ms,is loading? :" + session.getContext().getDOMContext().isLoading());
+    } */
   }
 
   public NodeId getNodeId() {
@@ -140,7 +149,10 @@ public class RemoteWebElement {
   }
 
   public String getText() throws Exception {
-    String f = "(function(arg) { " + "var text = " + Atoms.getText() + "(arg);" + "return text;})";
+    String
+        f =
+        "(function(arg) { " + "var text = " + IosAtoms.GET_VISIBLE_TEXT + "(arg);"
+        + "return text;})";
     JSONObject cmd = new JSONObject();
 
     cmd.put("method", "Runtime.callFunctionOn");
@@ -149,8 +161,9 @@ public class RemoteWebElement {
     args.put(new JSONObject().put("objectId", getRemoteObject().getId()));
 
     cmd.put("params",
-        new JSONObject().put("objectId", getRemoteObject().getId()).put("functionDeclaration", f)
-            .put("arguments", args).put("returnByValue", true));
+            new JSONObject().put("objectId", getRemoteObject().getId())
+                .put("functionDeclaration", f)
+                .put("arguments", args).put("returnByValue", true));
 
     JSONObject response = inspector.getProtocol().sendCommand(cmd);
     return inspector.cast(response);
@@ -168,7 +181,131 @@ public class RemoteWebElement {
     }
   }
 
-  
+  private String getNativeElementClickOnIt() throws Exception {
+    // web stuff.
+    scrollIntoViewIfNeeded();
+    Point po = findPosition();
+    System.out.println("click native on po :" + po.toString());
+
+    Dimension dim = inspector.getSize();
+    int webPageWidth = inspector.getInnerWidth();
+    if (dim.getWidth() != webPageWidth) {
+      log.warning("BUG : dim.getWidth()!=webPageWidth");
+    }
+
+    Criteria c = new TypeCriteria(UIAWebView.class);
+    String json = c.stringify().toString();
+    StringBuilder script = new StringBuilder();
+    script.append("var root = UIAutomation.cache.get('1');");
+    script.append("var webview = root.element(-1," + json + ");");
+    script.append("var webviewSize = webview.rect();");
+    script.append("var ratio = webviewSize.size.width / " + dim.getWidth() + ";");
+    int top = po.getY();
+    int left = po.getX();
+    script.append("var top = (" + top + "*ratio )+1;");
+    script.append("var left = (" + left + "*ratio)+1;");
+
+    script.append("var x = left;");
+    boolean ipad = session.getCapabilities().getDevice() == Device.ipad;
+    if (ipad) {
+      // for ipad, the adress bar h is fixed @ 96px.
+      script.append("var y = top+96;");
+    } else {
+      AppleLocale current = session.getApplication().getCurrentLanguage();
+      List<ContentResult>
+          results =
+          session.getApplication().getDictionary(current).getPotentialMatches("Address");
+      if (results.size() != 1) {
+        log.warning("translation returned " + results.size());
+      }
+      ContentResult result = results.get(0);
+      String addressL10ned = result.getL10nFormatted();
+      Criteria
+          c2 =
+          new AndCriteria(new TypeCriteria(UIAElement.class), new NameCriteria(addressL10ned),
+                          new LabelCriteria(addressL10ned));
+      script.append("var addressBar = root.element(-1," + c2.stringify().toString() + ");");
+      script.append("var addressBarSize = addressBar.rect();");
+      script.append("var delta = addressBarSize.origin.y +39;");
+      script.append("if (delta<20){delta=20;};");
+      script.append("var y = top+delta;");
+    }
+    script.append("UIATarget.localTarget().tap({'x':x,'y':y})");
+    // script.append("var nativeElement = root.element(-1,{'x':x,'y':y});");
+    // scroll into view.
+    // script.append("nativeElement.isStale();");
+    // script.append("nativeElement.tap();");
+
+    return script.toString();
+
+  }
+
+  private String getNativeElementClickOnItAndTypeUsingKeyboardScript(String value)
+      throws Exception {
+    // web stuff.
+    Point po = findPosition();
+    Dimension dim = inspector.getSize();
+    int webPageWidth = inspector.getInnerWidth();
+    if (dim.getWidth() != webPageWidth) {
+      log.warning("BUG : dim.getWidth()!=webPageWidth");
+    }
+
+    Criteria c = new TypeCriteria(UIAWebView.class);
+    String json = c.stringify().toString();
+    StringBuilder script = new StringBuilder();
+    script.append("var root = UIAutomation.cache.get('1');");
+    script.append("var webview = root.element(-1," + json + ");");
+    script.append("var webviewSize = webview.rect();");
+    script.append("var ratio = webviewSize.size.width / " + dim.getWidth() + ";");
+    int top = po.getY();
+    int left = po.getX();
+    script.append("var top = (" + top + "*ratio )+1;");
+    script.append("var left = (" + left + "*ratio)+1;");
+
+    script.append("var x = left;");
+    boolean ipad = session.getCapabilities().getDevice() == Device.ipad;
+    if (ipad) {
+      // for ipad, the adress bar h is fixed @ 96px.
+      script.append("var y = top+96;");
+    } else {
+      AppleLocale current = session.getApplication().getCurrentLanguage();
+      List<ContentResult>
+          results =
+          session.getApplication().getDictionary(current).getPotentialMatches("Address");
+      if (results.size() != 1) {
+        log.warning("translation returned " + results.size());
+      }
+      ContentResult result = results.get(0);
+      String addressL10ned = result.getL10nFormatted();
+      Criteria
+          c2 =
+          new AndCriteria(new TypeCriteria(UIAElement.class), new NameCriteria(addressL10ned),
+                          new LabelCriteria(addressL10ned));
+      script.append("var addressBar = root.element(-1," + c2.stringify().toString() + ");");
+      script.append("var addressBarSize = addressBar.rect();");
+      script.append("var delta = addressBarSize.origin.y +39;");
+      script.append("if (delta<20){delta=20;};");
+      script.append("var y = top+delta;");
+    }
+
+    script.append("var nativeElement = root.element(-1,{'x':x,'y':y});");
+    // scroll into view.
+    script.append("nativeElement.isStale();");
+    // tap at the end of the element to try to append the text at the end.
+    script.append("nativeElement.tap(0.99,0.5);");
+    script.append("var keyboard = UIAutomation.cache.get('1').keyboard();");
+    script.append("keyboard.typeString('" + value + "');");
+    Criteria iPhone = new NameCriteria("Done");
+    Criteria iPad = new NameCriteria("Hide keyboard");
+
+    Criteria c3 = new OrCriteria(iPad, iPhone);
+    // TODO freynaud create keyboard.hide();
+    script.append("root.element(-1," + c3.stringify().toString() + ").tap();");
+
+    return script.toString();
+
+  }
+
   private UIAElement getNativeElement() throws Exception {
     // highlight();
     if (nativeElement == null) {
@@ -179,8 +316,6 @@ public class RemoteWebElement {
       // TODO freynaud use dim, remove innerw
       Dimension dim = inspector.getSize();
 
-      
-
       WorkingMode origin = session.getMode();
 
       UIARect rect = null;
@@ -190,12 +325,16 @@ public class RemoteWebElement {
         UIAElement sv = nativeDriver.findElement(new TypeCriteria(UIAWebView.class));
 
         // scrollview container. Doesn't start in 0,0 // x=0,y=96,h=928w=768
-        // TODO freynaud : should save the current value, and reset to that at the end. Not to false. 
+        // TODO freynaud : should save the current value, and reset to that at
+        // the end. Not to false.
         nativeDriver.configure(WebDriverLikeCommand.RECT).set("checkForStale", false);
         rect = sv.getRect();
 
-        UIAElement addressBar = nativeDriver.findElement(new AndCriteria(new TypeCriteria(UIAElement.class),
-            new NameCriteria("Address",L10NStrategy.serverL10N), new LabelCriteria("Address",L10NStrategy.serverL10N)));
+        UIAElement addressBar = nativeDriver
+            .findElement(
+                new AndCriteria(new TypeCriteria(UIAElement.class), new NameCriteria("Address",
+                                                                                     L10NStrategy.serverL10N),
+                                new LabelCriteria("Address", L10NStrategy.serverL10N)));
         offset = addressBar.getRect();
         nativeDriver.configure(WebDriverLikeCommand.RECT).set("checkForStale", true);
         // rect = sv.getRect();
@@ -206,7 +345,7 @@ public class RemoteWebElement {
       int top = po.getY();
       int left = po.getX();
 
-         float ratio = ((float) rect.getWidth()) / ((float) (webPageWidth));
+      float ratio = ((float) rect.getWidth()) / ((float) (webPageWidth));
 
       top = (int) (top * ratio) + 1;
       left = (int) (left * ratio) + 1;
@@ -217,6 +356,10 @@ public class RemoteWebElement {
       int delta = offset.getY() + 39;
       // delta = heigth of the address bar + status bar.
       delta = delta < 20 ? 20 : delta;
+      boolean ipad = session.getCapabilities().getDevice() == Device.ipad;
+      if (ipad) {
+        delta = 96;
+      }
       int y = delta + top;
       try {
         session.setMode(WorkingMode.Native);
@@ -230,8 +373,68 @@ public class RemoteWebElement {
   }
 
   public Point findPosition() throws Exception {
-    String f = "(function(a) { " + "var el = this;" + " var rect = el.getClientRects()[0];" + " var res = "
-        + Atoms.stringify() + "({'top': rect.top,'left': rect.left });" + "return res;" + "})";
+
+    StringBuilder b = new StringBuilder();
+    b.append("(function(){");
+    b.append("var element = this;\n");
+    b.append("var rect = element.getClientRects()[0];\n");
+    b.append("var res = {'x': rect.left, 'y': rect.top};\n");
+
+    b.append(" var doc = element.ownerDocument;\n");
+    b.append(" var win = doc.defaultView;\n");
+    b.append(" var topWin = win.top;\n");
+
+    b.append(" var parentFrame = function (doc) {\n");
+    b.append("    var win = doc.defaultView;\n");
+    b.append("    var parentWin = win.parent;\n");
+    b.append("    var parentDoc = parentWin.document;\n");
+    b.append("    var frames = parentDoc.querySelectorAll('iframe,frame');\n");
+    b.append("    for (var i = 0; i < frames.length; i++) {\n");
+    b.append("        if (frames[i].contentDocument === doc) {\n");
+    b.append("            var r = frames[i];\n");
+    b.append("            return r;\n");
+    b.append("        }\n");
+    b.append("    }\n");
+    b.append("    return null;\n");
+    b.append("}\n");
+
+    b.append(" while (win !== topWin) {\n");
+    b.append("    rect = parentFrame(doc).getClientRects()[0];\n");
+    b.append("    var xoff = rect.left;\n");
+    b.append("    var yoff = rect.top;\n");
+    b.append("    if (xoff > 0) {\n");
+    b.append("        res.x += xoff;\n");
+    b.append("    }\n");
+    b.append("    if (yoff > 0) {\n");
+    b.append("        res.y += yoff;\n");
+    b.append("    }\n");
+    b.append("     win = win.parent;\n");
+    b.append("    doc = win.document;\n");
+    b.append("}\n");
+    b.append("return " + IosAtoms.STRINGIFY + "(res);\n");
+    b.append("})");
+
+    JSONObject cmd = new JSONObject();
+
+    cmd.put("method", "Runtime.callFunctionOn");
+
+    cmd.put(
+        "params",
+        new JSONObject().put("objectId", getRemoteObject().getId())
+            .put("functionDeclaration", b.toString())
+            .put("returnByValue", false));
+
+    JSONObject response = inspector.getProtocol().sendCommand(cmd);
+    String s = inspector.cast(response);
+    JSONObject o = new JSONObject(s);
+    return new Point(o.getInt("x"), o.getInt("y"));
+  }
+
+  public Point findPositionOld() throws Exception {
+    String
+        f =
+        "(function(a) { " + "var el = this;" + " var rect = el.getClientRects()[0];" + " var res = "
+        + IosAtoms.STRINGIFY + "({'top': rect.top,'left': rect.left });" + "return res;" + "})";
 
     JSONObject cmd = new JSONObject();
 
@@ -246,25 +449,6 @@ public class RemoteWebElement {
     String s = inspector.cast(response);
     JSONObject o = new JSONObject(s);
     return new Point(o.getInt("left"), o.getInt("top"));
-    /*
-     * String f = "(function(element) { var result = " +
-     * Atoms.getLocationInView() + "(element);" + "var res = " +
-     * Atoms.stringify() + "(result);" + "return  res;  })"; JSONObject cmd =
-     * new JSONObject();
-     * 
-     * cmd.put("method", "Runtime.callFunctionOn");
-     * 
-     * JSONArray args = new JSONArray(); args.put(new
-     * JSONObject().put("objectId", getRemoteObject().getId()));
-     * 
-     * cmd.put("params", new JSONObject() .put("objectId",
-     * getRemoteObject().getId()) .put("functionDeclaration", f)
-     * .put("arguments", args) .put("returnByValue", false));
-     * 
-     * JSONObject response = inspector.getProtocol().sendCommand(cmd); String
-     * res = inspector.cast(response); JSONObject o = new JSONObject(res);
-     * return new Point(o.getInt("x"), o.getInt("y"));
-     */
   }
 
   public String getAttribute(String attributeName) throws Exception {
@@ -281,8 +465,11 @@ public class RemoteWebElement {
   }
 
   public boolean isSelected() throws Exception {
-    String func = Atoms.isSelected();
-    String f = "(function(arg) { " + "var isDisplayed = " + func + "(arg);" + "return isDisplayed;})";
+
+    String
+        f =
+        "(function(arg) { " + "var isDisplayed = " + IosAtoms.IS_SELECTED + "(arg);"
+        + "return isDisplayed;})";
     JSONObject cmd = new JSONObject();
 
     cmd.put("method", "Runtime.callFunctionOn");
@@ -291,16 +478,19 @@ public class RemoteWebElement {
     args.put(new JSONObject().put("objectId", getRemoteObject().getId()));
 
     cmd.put("params",
-        new JSONObject().put("objectId", getRemoteObject().getId()).put("functionDeclaration", f)
-            .put("arguments", args).put("returnByValue", true));
+            new JSONObject().put("objectId", getRemoteObject().getId())
+                .put("functionDeclaration", f)
+                .put("arguments", args).put("returnByValue", true));
 
     JSONObject response = inspector.getProtocol().sendCommand(cmd);
-    return (Boolean)inspector.cast(response);
+    return (Boolean) inspector.cast(response);
   }
 
   public boolean isDisplayed() throws Exception {
-    String func = Atoms.isDisplayed();
-    String f = "(function(arg) { " + "var isDisplayed = " + func + "(arg);" + "return isDisplayed;})";
+    String
+        f =
+        "(function(arg) { " + "var isDisplayed = " + IosAtoms.IS_SHOWN + "(arg);"
+        + "return isDisplayed;})";
     JSONObject cmd = new JSONObject();
 
     cmd.put("method", "Runtime.callFunctionOn");
@@ -309,14 +499,16 @@ public class RemoteWebElement {
     args.put(new JSONObject().put("objectId", getRemoteObject().getId()));
 
     cmd.put("params",
-        new JSONObject().put("objectId", getRemoteObject().getId()).put("functionDeclaration", f)
-            .put("arguments", args).put("returnByValue", true));
+            new JSONObject().put("objectId", getRemoteObject().getId())
+                .put("functionDeclaration", f)
+                .put("arguments", args).put("returnByValue", true));
 
     JSONObject response = inspector.getProtocol().sendCommand(cmd);
-    return (Boolean)inspector.cast(response);
+    return (Boolean) inspector.cast(response);
   }
 
-  public RemoteWebElement findElementByLinkText(String text, boolean partialMatch) throws Exception {
+  public RemoteWebElement findElementByLinkText(String text, boolean partialMatch)
+      throws Exception {
 
     String ifStatement;
     if (partialMatch) {
@@ -325,10 +517,11 @@ public class RemoteWebElement {
       ifStatement = "if (text === elements[i].innerText ){";
     }
     String f = "(function(text) { " + "var elements = this.querySelectorAll('a');"
-        + "for ( var i =0;i<elements.length;i++){" + ifStatement + "  return elements[i];" + "}" // end
-                                                                                                 // if
-        + "}" // end for
-        + "return null;" + "})"; // end function
+               + "for ( var i =0;i<elements.length;i++){" + ifStatement + "  return elements[i];"
+               + "}" // end
+               // if
+               + "}" // end for
+               + "return null;" + "})"; // end function
 
     JSONObject cmd = new JSONObject();
 
@@ -338,8 +531,9 @@ public class RemoteWebElement {
     args.put(new JSONObject().put("value", text));
 
     cmd.put("params",
-        new JSONObject().put("objectId", getRemoteObject().getId()).put("functionDeclaration", f)
-            .put("arguments", args).put("returnByValue", false));
+            new JSONObject().put("objectId", getRemoteObject().getId())
+                .put("functionDeclaration", f)
+                .put("arguments", args).put("returnByValue", false));
 
     JSONObject response = inspector.getProtocol().sendCommand(cmd);
     RemoteObject ro = inspector.cast(response);
@@ -350,7 +544,8 @@ public class RemoteWebElement {
     }
   }
 
-  public List<RemoteWebElement> findElementsByLinkText(String text, boolean partialMatch) throws Exception {
+  public List<RemoteWebElement> findElementsByLinkText(String text, boolean partialMatch)
+      throws Exception {
     String ifStatement;
     if (partialMatch) {
       ifStatement = "if ( elements[i].innerText.indexOf(text) != -1 ){";
@@ -358,9 +553,13 @@ public class RemoteWebElement {
       ifStatement = "if (text === elements[i].innerText ){";
     }
 
-    String f = "(function(text) { " + "var elements = this.querySelectorAll('a');" + "var result = new Array();"
-        + "for ( var i =0;i<elements.length;i++){" + ifStatement + "  result.push(elements[i]);" + "}" // end
-                                                                                                       // if
+    String
+        f =
+        "(function(text) { " + "var elements = this.querySelectorAll('a');"
+        + "var result = new Array();"
+        + "for ( var i =0;i<elements.length;i++){" + ifStatement + "  result.push(elements[i]);"
+        + "}" // end
+        // if
         + "}" // end for
         + "return result;" + "})"; // end function
 
@@ -372,8 +571,9 @@ public class RemoteWebElement {
     args.put(new JSONObject().put("value", text));
 
     cmd.put("params",
-        new JSONObject().put("objectId", getRemoteObject().getId()).put("functionDeclaration", f)
-            .put("arguments", args).put("returnByValue", false));
+            new JSONObject().put("objectId", getRemoteObject().getId())
+                .put("functionDeclaration", f)
+                .put("arguments", args).put("returnByValue", false));
 
     JSONObject response = protocol.sendCommand(cmd);
     List<RemoteObject> ros = inspector.cast(response);
@@ -398,7 +598,8 @@ public class RemoteWebElement {
       cmd.put(
           "params",
           new JSONObject().put("objectId", getRemoteObject().getId())
-              .put("functionDeclaration", "(function(arg) { var el = this.querySelector(arg);return el;})")
+              .put("functionDeclaration",
+                   "(function(arg) { var el = this.querySelector(arg);return el;})")
               .put("arguments", args).put("returnByValue", false));
 
       JSONObject response = protocol.sendCommand(cmd);
@@ -451,7 +652,8 @@ public class RemoteWebElement {
     cmd.put(
         "params",
         new JSONObject().put("objectId", getRemoteObject().getId())
-            .put("functionDeclaration", "(function(arg) { var state = document.readyState; return state;})")
+            .put("functionDeclaration",
+                 "(function(arg) { var state = document.readyState; return state;})")
             .put("arguments", args).put("returnByValue", true));
     JSONObject response = protocol.sendCommand(cmd);
     return inspector.cast(response);
@@ -464,9 +666,9 @@ public class RemoteWebElement {
       // String text = getText();
       String remoteElement = remoteObject == null ? "not loaded" : remoteObject.getId();
       return "nodeId=" + nodeId + " , remoteElement " + remoteElement; // +
-                                                                       // "text:"
-                                                                       // +
-                                                                       // text;
+      // "text:"
+      // +
+      // text;
     } catch (Exception e) {
       return e.getMessage();
     }
@@ -483,7 +685,8 @@ public class RemoteWebElement {
     cmd.put(
         "params",
         new JSONObject().put("objectId", getRemoteObject().getId())
-            .put("functionDeclaration", "(function(arg) { var document = this.contentDocument; return document;})")
+            .put("functionDeclaration",
+                 "(function(arg) { var document = this.contentDocument; return document;})")
             .put("arguments", args).put("returnByValue", false));
 
     JSONObject response = protocol.sendCommand(cmd);
@@ -510,17 +713,17 @@ public class RemoteWebElement {
         new JSONObject()
             .put("objectId", getRemoteObject().getId())
             .put("functionDeclaration",
-                "(function(args) { var me = this; var other=args;alert(me +' -- '+other);return me === other;})")
+                 "(function(args) { var me = this; var other=args;alert(me +' -- '+other);return me === other;})")
             .put("arguments", args).put("returnByValue", false));
 
     JSONObject response = protocol.sendCommand(cmd);
-    boolean equal = (Boolean)inspector.cast(response);
+    boolean equal = (Boolean) inspector.cast(response);
     return equal;
 
   }
 
   public void submit() throws Exception {
-    String f = "(function(arg) { " + "var text = " + Atoms.submit() + "(arg);" + "return text;})";
+    String f = "(function(arg) { " + "var text = " + IosAtoms.SUBMIT + "(arg);" + "return text;})";
     JSONObject cmd = new JSONObject();
 
     cmd.put("method", "Runtime.callFunctionOn");
@@ -529,8 +732,9 @@ public class RemoteWebElement {
     args.put(new JSONObject().put("objectId", getRemoteObject().getId()));
 
     cmd.put("params",
-        new JSONObject().put("objectId", getRemoteObject().getId()).put("functionDeclaration", f)
-            .put("arguments", args).put("returnByValue", true));
+            new JSONObject().put("objectId", getRemoteObject().getId())
+                .put("functionDeclaration", f)
+                .put("arguments", args).put("returnByValue", true));
 
     JSONObject response = inspector.getProtocol().sendCommand(cmd);
     inspector.cast(response);
@@ -538,8 +742,8 @@ public class RemoteWebElement {
   }
 
   public RemoteWebElement findElementByXpath(String xpath) throws Exception {
-    String f = "(function(xpath,element) { var result = " + Atoms.findByXpath() + "(xpath,element);"
-        + "return result;})";
+    String f = "(function(xpath,element) { var result = " + IosAtoms.XPATH + "(xpath,element);"
+               + "return result;})";
     JSONObject cmd = new JSONObject();
 
     cmd.put("method", "Runtime.callFunctionOn");
@@ -549,8 +753,9 @@ public class RemoteWebElement {
     args.put(new JSONObject().put("objectId", getRemoteObject().getId()));
 
     cmd.put("params",
-        new JSONObject().put("objectId", getRemoteObject().getId()).put("functionDeclaration", f)
-            .put("arguments", args).put("returnByValue", false));
+            new JSONObject().put("objectId", getRemoteObject().getId())
+                .put("functionDeclaration", f)
+                .put("arguments", args).put("returnByValue", false));
 
     JSONObject response = inspector.getProtocol().sendCommand(cmd);
     RemoteObject ro = inspector.cast(response);
@@ -562,7 +767,9 @@ public class RemoteWebElement {
   }
 
   public List<RemoteWebElement> findElementsByXpath(String xpath) throws Exception {
-    String f = "(function(xpath,element) { var results = " + Atoms.findsByXpath() + "(xpath,element);"
+    String
+        f =
+        "(function(xpath,element) { var results = " + IosAtoms.XPATHS + "(xpath,element);"
         + "return results;})";
     JSONObject cmd = new JSONObject();
 
@@ -573,8 +780,9 @@ public class RemoteWebElement {
     args.put(new JSONObject().put("objectId", getRemoteObject().getId()));
 
     cmd.put("params",
-        new JSONObject().put("objectId", getRemoteObject().getId()).put("functionDeclaration", f)
-            .put("arguments", args).put("returnByValue", false));
+            new JSONObject().put("objectId", getRemoteObject().getId())
+                .put("functionDeclaration", f)
+                .put("arguments", args).put("returnByValue", false));
 
     JSONObject response = inspector.getProtocol().sendCommand(cmd);
 
@@ -587,9 +795,11 @@ public class RemoteWebElement {
     return res;
   }
 
-  
   public void setValueAtoms(String value) throws Exception {
-    String f = "(function(element,value) { var result = " + Atoms.type() + "(element,value);" + "return result;})";
+    String
+        f =
+        "(function(element,value) { var result = " + IosAtoms.TYPE + "(element,value);"
+        + "return result;})";
     JSONObject cmd = new JSONObject();
 
     cmd.put("method", "Runtime.callFunctionOn");
@@ -599,44 +809,39 @@ public class RemoteWebElement {
     args.put(new JSONObject().put("value", value));
 
     cmd.put("params",
-        new JSONObject().put("objectId", getRemoteObject().getId()).put("functionDeclaration", f)
-            .put("arguments", args).put("returnByValue", false));
+            new JSONObject().put("objectId", getRemoteObject().getId())
+                .put("functionDeclaration", f)
+                .put("arguments", args).put("returnByValue", false));
 
-     inspector.getProtocol().sendCommand(cmd);
+    inspector.getProtocol().sendCommand(cmd);
   }
 
   public void setValueNative(String value) throws Exception {
-    UIAElement el = getNativeElement();
+    /*
+     * WebElement el = getNativeElement(); WorkingMode origin =
+     * session.getMode(); try { session.setMode(WorkingMode.Native); el.click();
+     * RemoteUIAKeyboard keyboard = (RemoteUIAKeyboard)
+     * session.getNativeDriver().getKeyboard(); if ("\n".equals(value)) {
+     * keyboard.findElement(new NameCriteria("Return")).tap(); } else {
+     * keyboard.sendKeys(value); }
+     * 
+     * Criteria iphone = new NameCriteria("Done"); Criteria ipad = new
+     * NameCriteria("Hide keyboard");
+     * 
+     * UIAButton but = session.getNativeDriver().findElement(new
+     * OrCriteria(ipad, iphone)); but.tap(); //
+     * session.getNativeDriver().pinchClose(300, 400, 50, 100, 1); } finally {
+     * session.setMode(origin); }
+     */
     WorkingMode origin = session.getMode();
-    try {
-      session.setMode(WorkingMode.Native);
-      UIARect rect = el.getRect();
-      int x = rect.getX() + rect.getWidth() - 1;
-      int y = rect.getY() + rect.getHeight() / 2;
-      // TODO freynaud : tap() should take a param like middle, topLeft,
-      // bottomRight to save 1 call.
-      session.getNativeDriver().tap(x, y);
-      RemoteUIAKeyboard keyboard = (RemoteUIAKeyboard) session.getNativeDriver().getKeyboard();
-      if ("\n".equals(value)) {
-        keyboard.findElement(new NameCriteria("Return")).tap();
-      } else {
-        keyboard.sendKeys(value);
-      }
-
-      Criteria iphone = new NameCriteria("Done");
-      Criteria ipad = new NameCriteria("Hide keyboard");
-
-      UIAButton but = session.getNativeDriver().findElement(new OrCriteria(ipad, iphone));
-      but.tap();
-      // session.getNativeDriver().pinchClose(300, 400, 50, 100, 1);
-    } finally {
-      session.setMode(origin);
-    }
-
+    session.setMode(WorkingMode.Native);
+    ((JavascriptExecutor) nativeDriver)
+        .executeScript(getNativeElementClickOnItAndTypeUsingKeyboardScript(value));
+    session.setMode(origin);
   }
 
-  public void clear() throws Exception {
-    String f = "(function(element) { " + "var text = " + Atoms.clear() + "(element);" + "return text;})";
+  public void scrollIntoViewIfNeeded() throws Exception {
+    String f = "(function(element) { element.scrollIntoViewIfNeeded()})";
     JSONObject cmd = new JSONObject();
 
     cmd.put("method", "Runtime.callFunctionOn");
@@ -645,8 +850,30 @@ public class RemoteWebElement {
     args.put(new JSONObject().put("objectId", getRemoteObject().getId()));
 
     cmd.put("params",
-        new JSONObject().put("objectId", getRemoteObject().getId()).put("functionDeclaration", f)
-            .put("arguments", args).put("returnByValue", true));
+            new JSONObject().put("objectId", getRemoteObject().getId())
+                .put("functionDeclaration", f)
+                .put("arguments", args).put("returnByValue", true));
+
+    JSONObject response = inspector.getProtocol().sendCommand(cmd);
+    inspector.cast(response);
+
+  }
+
+  public void clear() throws Exception {
+    String
+        f =
+        "(function(element) { " + "var text = " + IosAtoms.CLEAR + "(element);" + "return text;})";
+    JSONObject cmd = new JSONObject();
+
+    cmd.put("method", "Runtime.callFunctionOn");
+
+    JSONArray args = new JSONArray();
+    args.put(new JSONObject().put("objectId", getRemoteObject().getId()));
+
+    cmd.put("params",
+            new JSONObject().put("objectId", getRemoteObject().getId())
+                .put("functionDeclaration", f)
+                .put("arguments", args).put("returnByValue", true));
 
     JSONObject response = inspector.getProtocol().sendCommand(cmd);
     inspector.cast(response);
@@ -663,7 +890,8 @@ public class RemoteWebElement {
     cmd.put(
         "params",
         new JSONObject().put("objectId", getRemoteObject().getId())
-            .put("functionDeclaration", "(function(arg) { var window = this.contentWindow; return window;})")
+            .put("functionDeclaration",
+                 "(function(arg) { var window = this.contentWindow; return window;})")
             .put("arguments", args).put("returnByValue", false));
 
     JSONObject response = protocol.sendCommand(cmd);

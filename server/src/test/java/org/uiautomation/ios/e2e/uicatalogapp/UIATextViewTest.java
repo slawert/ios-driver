@@ -54,7 +54,7 @@ public class UIATextViewTest extends BaseIOSDriverTest {
 
   @Test
   public void newLinesAndTabs() {
-    String v = "ABC\nLine 2\nthanks,\nFrançois";
+    String v = "ABC\nLine 2\t col3\nthanks,\nFrançois";
     textview.setValue(v);
     Assert.assertEquals(textview.getValue(), v);
   }
@@ -65,13 +65,13 @@ public class UIATextViewTest extends BaseIOSDriverTest {
     textview.setValue(v);
     Assert.assertEquals(textview.getValue(), v);
   }
-  
+
   @Test
   public void shalom() {
     String v = "שָׁלוֹם";
     textview.setValue(v);
     Assert.assertEquals(textview.getValue(), v);
   }
-  
+
 
 }

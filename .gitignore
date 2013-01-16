@@ -1,4 +1,4 @@
-server/instruments*
+server/instrumentscli*
 ide/instruments*
 client/.settings
 common/.settings
@@ -28,14 +28,14 @@ ide/.project
 ide/uiamasterscript.js
 server/uiamasterscript.js
 server/ss.png
-instruments*
+instrumentscli*
 server/src/test/resources/fr.json
 /java/*
 ide/src/test/java/org/uiautomation/ios/ide/pages/begin/SafariTests.java
 ide/src/test/java/org/uiautomation/ios/ide/pages/begin/eBayTests.java
 ide/src/test/java/org/uiautomation/ios/ide/pages/begin/SafariTests.java
 go.sh
-server-standalone-*-SNAPSHOT.jar
+server-standalone-*.jar
 ide/src/test/java/org/uiautomation/ios/selenium/PerformanceTest.java
 ios-selenium-tests/src/test/java/org/uiautomation/ios/selenium/PerformanceTest.java
 ios-selenium-tests/src/test/java/org/uiautomation/ios/selenium/playground/PerformanceTest.java

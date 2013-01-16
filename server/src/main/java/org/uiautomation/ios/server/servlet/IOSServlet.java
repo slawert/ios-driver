@@ -13,13 +13,6 @@
  */
 package org.uiautomation.ios.server.servlet;
 
-import java.io.IOException;
-import java.util.logging.Logger;
-
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -32,6 +25,13 @@ import org.uiautomation.ios.communication.WebDriverLikeRequest;
 import org.uiautomation.ios.server.CommandMapping;
 import org.uiautomation.ios.server.command.Handler;
 
+import java.io.IOException;
+import java.util.logging.Logger;
+
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
 public class IOSServlet extends DriverBasedServlet {
 
   private static final Logger log = Logger.getLogger(IOSServlet.class.getName());
@@ -39,7 +39,8 @@ public class IOSServlet extends DriverBasedServlet {
   private final ErrorCodes errorCodes = new ErrorCodes();
 
   @Override
-  protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+  protected void doGet(HttpServletRequest request, HttpServletResponse response)
+      throws ServletException, IOException {
     try {
       process(request, response);
     } catch (Exception e) {
@@ -49,7 +50,8 @@ public class IOSServlet extends DriverBasedServlet {
   }
 
   @Override
-  protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+  protected void doPost(HttpServletRequest request, HttpServletResponse response)
+      throws ServletException, IOException {
     try {
       process(request, response);
     } catch (Exception e) {
@@ -59,8 +61,9 @@ public class IOSServlet extends DriverBasedServlet {
   }
 
   @Override
-  protected void doDelete(HttpServletRequest request, HttpServletResponse response) throws ServletException,
-      IOException {
+  protected void doDelete(HttpServletRequest request, HttpServletResponse response)
+      throws ServletException,
+             IOException {
     try {
       process(request, response);
     } catch (Exception e) {
@@ -78,6 +81,7 @@ public class IOSServlet extends DriverBasedServlet {
     response.setStatus(200);
 
     Response resp = getResponse(req);
+    log.fine("got " + resp.toString());
 
     // TODO implement the json protocol properly.
     if (req.getGenericCommand() == WebDriverLikeCommand.NEW_SESSION && resp.getStatus() == 0) {
@@ -123,12 +127,13 @@ public class IOSServlet extends DriverBasedServlet {
     WebDriverLikeCommand wdlc = null;
     try {
       wdlc = request.getGenericCommand();
+      log.fine("command :  " + wdlc);
       Handler h = CommandMapping.get(wdlc).createHandler(getDriver(), request);
       command = wdlc.method() + "\t " + wdlc.path();
       return h.handleAndRunDecorators();
     } catch (WebDriverException we) {
       Response response = new Response();
-      if (wdlc.isSessionLess()) {
+      if (wdlc != null && wdlc.isSessionLess()) {
         response.setSessionId("");
       } else {
         response.setSessionId(request.getSession());
