@@ -107,8 +107,8 @@ h4 {
 }
 
 #topmenu ul li, #htmlmenu ul li {
-	margin-right: 2em;
-	padding-right: 2em;
+	margin-right: 1em;
+	padding-right: 1em;
 	list-style: none;
 	display: inline;
 	color: #FFFFFF;
@@ -255,4 +255,8 @@ a.boxclose {
 	border-top: 10px solid transparent;
 	border-bottom: 10px solid transparent; 
 	border-left:10px solid #FFFFFF; 
+}
+
+#capabilities{
+	width: 40%;
 }
